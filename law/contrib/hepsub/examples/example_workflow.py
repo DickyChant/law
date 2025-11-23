@@ -47,9 +47,9 @@ class ProcessDataHEPSub(law.contrib.hepsub.HEPSubWorkflow, law.LocalWorkflow):
         description="memory requirement in MB",
     )
 
-    walltime = luigi.Parameter(
+    hepsub_walltime = luigi.Parameter(
         default="02:00:00",
-        description="walltime in HH:MM:SS format",
+        description="walltime for hep_sub jobs (HH:MM:SS format)",
     )
 
     # Workflow methods
@@ -127,7 +127,7 @@ class ProcessDataHEPSub(law.contrib.hepsub.HEPSubWorkflow, law.LocalWorkflow):
         # Set resource requirements
         config.memory = self.memory
         config.cpus = 1
-        config.walltime = self.walltime
+        config.walltime = self.hepsub_walltime
 
         # Add custom content to the job script
         config.custom_content = [
@@ -151,7 +151,7 @@ class AnalyzeResultsHEPSub(law.Task):
     Downstream task that analyzes all results from the HEPSub workflow.
     """
 
-    hepsub_group = luigi.Parameter(default="juno")
+    hepsub_group = luigi.Parameter(default="cms")
     n_files = luigi.IntParameter(default=10)
 
     def requires(self):
@@ -205,7 +205,7 @@ class SimpleHEPSubTask(law.Task):
     Simple single-job example using HEPSubJobManager directly.
     """
 
-    hepsub_group = luigi.Parameter(default="juno")
+    hepsub_group = luigi.Parameter(default="cms")
 
     def output(self):
         return law.LocalFileTarget("simple_output.txt")
