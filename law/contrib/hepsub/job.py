@@ -187,12 +187,13 @@ class HEPSubJobManager(BaseJobManager):
         cmd = ["hep_q", "-u", os.environ.get("USER", "unknown")]
         if group:
             cmd += ["-g", group]
-        # Add specific job IDs to query
-        cmd += ["-i"] + job_ids
+        # Note: Don't use -i flag, just query all user's jobs and filter in parsing
+        # Some jobs might have .0 suffix (cluster.process format)
+        # cmd += ["-i"] + job_ids  # Skip -i to get all jobs
         cmd = quote_cmd(cmd)
 
         # run it
-        logger.debug("query hepsub job(s) with command '{}'".format(cmd))
+        logger.debug("query hepsub job(s) '{}' with command '{}'".format(job_ids, cmd))
         code, out, err = interruptable_popen(cmd, shell=True, executable="/bin/bash",
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, kill_timeout=2, processes=_processes)
 
@@ -204,8 +205,12 @@ class HEPSubJobManager(BaseJobManager):
                 raise Exception("status query of hepsub job(s) '{}' failed with code {}:\n{}".format(
                     job_id, code, err))
 
+        # debug: log what we got from hep_q
+        logger.debug("hep_q output:\n{}".format(out))
+
         # parse the output and extract the status per job
         query_data = self.parse_query_output(out)
+        logger.debug("parsed query data: {}".format(query_data))
 
         # compare to the requested job ids and perform some checks
         for _job_id in job_ids:
