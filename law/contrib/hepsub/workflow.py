@@ -310,10 +310,18 @@ class HEPSubWorkflow(BaseRemoteWorkflow):
         return self.poll_interval * 60
 
     def hepsub_check_job_completeness(self):
-        return False
+        """
+        Check if jobs completed by looking at output files.
+        Essential for IHEP where fast jobs finish before we can query them.
+        """
+        return True
 
     def hepsub_check_job_completeness_delay(self):
-        return 0.0
+        """
+        Delay before checking output files (in seconds).
+        Give the job a moment to write outputs after completion.
+        """
+        return 10.0
 
     def hepsub_poll_callback(self, poll_data):
         """
