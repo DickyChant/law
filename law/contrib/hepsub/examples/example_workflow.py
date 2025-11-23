@@ -99,11 +99,13 @@ class ProcessDataHEPSub(law.contrib.hepsub.HEPSubWorkflow, law.LocalWorkflow):
     def hepsub_output_directory(self):
         """
         Directory where job files and outputs are stored.
+        Use scratchfs for best performance and permissions with batch jobs.
         """
         return law.LocalDirectoryTarget(
             os.path.join(
-                os.path.expandvars("$HOME"),
-                "law_hepsub_jobs",
+                "/scratchfs/cms",
+                os.environ.get("USER", "unknown"),
+                "law_hepsub_output",
                 self.task_family,
             ),
         )
