@@ -42,7 +42,13 @@ class HEPSubJobManager(BaseJobManager):
     chunk_size_cancel = _cfg.get_expanded_int("job", "hepsub_chunk_size_cancel")
     chunk_size_query = _cfg.get_expanded_int("job", "hepsub_chunk_size_query")
 
-    submission_job_id_cre = re.compile(r".*submitted to cluster (\d+).*", re.IGNORECASE)
+    # Multiple regex patterns to match different hep_sub output formats
+    submission_job_id_patterns = [
+        re.compile(r".*submitted to cluster (\d+).*", re.IGNORECASE),
+        re.compile(r".*job\s*<?(\d+)>?.*submitted.*", re.IGNORECASE),
+        re.compile(r".*job\s+id\s*:?\s*(\d+).*", re.IGNORECASE),
+        re.compile(r"^\s*(\d+)\s*$"),  # Just a number
+    ]
 
     def __init__(self, group=None, pool=None, universe=None, emails=False, threads=1):
         super(HEPSubJobManager, self).__init__()
@@ -98,12 +104,20 @@ class HEPSubJobManager(BaseJobManager):
 
             # get the job id
             if code == 0:
-                m = self.submission_job_id_cre.search(out)
-                if m:
-                    job_id = m.group(1)
-                else:
+                job_id = None
+                # Try all regex patterns
+                for pattern in self.submission_job_id_patterns:
+                    m = pattern.search(out)
+                    if m:
+                        job_id = m.group(1)
+                        logger.debug("matched job id '{}' with pattern '{}'".format(
+                            job_id, pattern.pattern))
+                        break
+
+                if not job_id:
                     code = 1
-                    err = "cannot parse job id from output:\n{}".format(out)
+                    err = "cannot parse job id from hep_sub output.\nOutput was:\n{}\nStderr was:\n{}".format(
+                        out, err)
 
             # retry or done?
             if code == 0:

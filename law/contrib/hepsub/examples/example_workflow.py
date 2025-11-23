@@ -28,8 +28,8 @@ class ProcessDataHEPSub(law.contrib.hepsub.HEPSubWorkflow, law.LocalWorkflow):
 
     # Task parameters
     hepsub_group = luigi.Parameter(
-        default="juno",
-        description="HEPSub job group (e.g., physics, juno, dybrun)",
+        default="cms",
+        description="HEPSub job group (e.g., physics, cms, juno, dybrun)",
     )
 
     hepsub_pool = luigi.Parameter(
