@@ -141,7 +141,15 @@ class HEPSubJobManager(BaseJobManager):
 
             raise Exception("submission of hepsub job '{}' failed: \n{}".format(job_file, err))
 
-    def cancel(self, job_id, silent=False, _processes=None):
+    def cancel(self, job_id, group=None, pool=None, universe=None, silent=False, _processes=None):
+        # default arguments (group/pool/universe not used for cancel, but accepted for API compatibility)
+        if group is None:
+            group = self.group
+        if pool is None:
+            pool = self.pool
+        if universe is None:
+            universe = self.universe
+
         chunking = isinstance(job_id, (list, tuple))
         job_ids = make_list(job_id)
 
@@ -162,13 +170,25 @@ class HEPSubJobManager(BaseJobManager):
 
         return {job_id: None for job_id in job_ids} if chunking else None
 
-    def query(self, job_id, silent=False, _processes=None):
+    def query(self, job_id, group=None, pool=None, universe=None, silent=False, _processes=None):
+        # default arguments
+        if group is None:
+            group = self.group
+        if pool is None:
+            pool = self.pool
+        if universe is None:
+            universe = self.universe
+
         chunking = isinstance(job_id, (list, tuple))
         job_ids = make_list(job_id)
 
-        # build the command
-        cmd = ["hep_q", "-i"]
-        cmd += job_ids
+        # build the command - query by user and group, then filter by job IDs
+        import os
+        cmd = ["hep_q", "-u", os.environ.get("USER", "unknown")]
+        if group:
+            cmd += ["-g", group]
+        # Add specific job IDs to query
+        cmd += ["-i"] + job_ids
         cmd = quote_cmd(cmd)
 
         # run it
@@ -207,7 +227,9 @@ class HEPSubJobManager(BaseJobManager):
         """
         Example output to parse from hep_q:
         JOBID OWNER SUBMITTED RUN_TIME ST PRI SIZE CMD
-        123456 user 1/1 12:00 0+00:01:23 R 0 100.0 job.sh
+        59446573.0 user 11/23 09:18 0+00:00:00 H 0 0.0 job.sh
+
+        Note: IHEP uses cluster.process format (e.g., 59446573.0)
         """
         query_data = {}
 
@@ -220,14 +242,22 @@ class HEPSubJobManager(BaseJobManager):
             if parts[0] == "JOBID":
                 continue
 
-            job_id = parts[0]
+            job_id_full = parts[0]  # e.g., "59446573.0"
             status_flag = parts[4]
+
+            # Extract base job ID (before the dot)
+            # Store both formats to handle matching
+            if "." in job_id_full:
+                job_id_base = job_id_full.split(".")[0]
+            else:
+                job_id_base = job_id_full
 
             # map the status
             status = cls.map_status(status_flag)
 
-            # save the result
-            query_data[job_id] = cls.job_status_dict(job_id=job_id, status=status)
+            # save the result with both base ID and full ID
+            query_data[job_id_base] = cls.job_status_dict(job_id=job_id_full, status=status)
+            query_data[job_id_full] = cls.job_status_dict(job_id=job_id_full, status=status)
 
         return query_data
 
@@ -433,19 +463,21 @@ class HEPSubJobFileFactory(BaseJobFileFactory):
                     content.append(" ".join(str(x) for x in item))
             content.append("")
 
-        # redirect stdout/stderr if needed
-        if c.stdout:
-            content.append("exec 1>{}".format(c.stdout))
-        if c.stderr:
-            content.append("exec 2>{}".format(c.stderr))
-        if c.stdout or c.stderr:
-            content.append("")
-
-        # change to working directory
+        # change to working directory FIRST
         # This is where the job actually runs and modifies files
         if c.cwd:
             content.append("# Change to working directory")
             content.append("cd {}".format(c.cwd))
+            content.append("")
+
+        # Redirect stdout/stderr AFTER cd to working directory
+        # This ensures we write to a directory where we have permissions
+        if c.stdout or c.stderr:
+            content.append("# Redirect output to working directory")
+            if c.stdout:
+                content.append("exec 1>{}".format(c.stdout))
+            if c.stderr:
+                content.append("exec 2>{}".format(c.stderr))
             content.append("")
 
         # execute the command or executable
