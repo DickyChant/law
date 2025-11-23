@@ -105,19 +105,24 @@ class HEPSubJobManager(BaseJobManager):
             # get the job id
             if code == 0:
                 job_id = None
-                # Try all regex patterns
+                # hep_sub might output to stdout or stderr, so check both
+                combined_output = out + "\n" + err
+
+                # Try all regex patterns on the combined output
                 for pattern in self.submission_job_id_patterns:
-                    m = pattern.search(out)
+                    m = pattern.search(combined_output)
                     if m:
                         job_id = m.group(1)
-                        logger.debug("matched job id '{}' with pattern '{}'".format(
-                            job_id, pattern.pattern))
+                        logger.debug("matched job id '{}' with pattern '{}' from output: {}".format(
+                            job_id, pattern.pattern, combined_output.strip()))
                         break
 
                 if not job_id:
                     code = 1
-                    err = "cannot parse job id from hep_sub output.\nOutput was:\n{}\nStderr was:\n{}".format(
-                        out, err)
+                    err = (
+                        "cannot parse job id from hep_sub output.\n"
+                        "Stdout:\n{}\nStderr:\n{}"
+                    ).format(out, err)
 
             # retry or done?
             if code == 0:
