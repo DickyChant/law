@@ -52,6 +52,16 @@ class ProcessDataHEPSub(law.contrib.hepsub.HEPSubWorkflow, law.LocalWorkflow):
         description="walltime for hep_sub jobs (HH:MM:SS format)",
     )
 
+    # CMSSW configuration (optional, only needed for CMS workflows)
+    cmssw_version = luigi.Parameter(
+        default="",
+        description="CMSSW version to setup (leave empty to disable CMSSW setup)",
+    )
+    cmssw_arch = luigi.Parameter(
+        default="",
+        description="SCRAM architecture for CMSSW (e.g., slc7_amd64_gcc900)",
+    )
+
     # Workflow methods
     def create_branch_map(self):
         """
@@ -138,6 +148,19 @@ class ProcessDataHEPSub(law.contrib.hepsub.HEPSubWorkflow, law.LocalWorkflow):
             "echo 'Working directory: '$(pwd)",
             "",
         ]
+
+        # Set CMSSW environment variables for bootstrap script
+        if self.cmssw_version:
+            config.custom_content.extend([
+                "# CMSSW environment setup",
+                "export LAW_CMSSW_VERSION='{}'".format(self.cmssw_version),
+                "export LAW_CMSSW_DIR='${HOME}/cmssw'  # Adjust path as needed",
+            ])
+            if self.cmssw_arch:
+                config.custom_content.append(
+                    "export LAW_CMSSW_ARCH='{}'".format(self.cmssw_arch)
+                )
+            config.custom_content.append("")
 
         return config
 
@@ -254,6 +277,10 @@ if __name__ == "__main__":
     Usage:
         # Run the full workflow with 5 files
         python example_workflow.py ProcessDataHEPSub --n-files 5 --hepsub-group juno
+
+        # Run with CMSSW setup (CMS workflows)
+        python example_workflow.py ProcessDataHEPSub --n-files 5 --hepsub-group cms \
+            --cmssw-version CMSSW_12_4_0 --cmssw-arch slc7_amd64_gcc900
 
         # Run analysis after workflow completes
         python example_workflow.py AnalyzeResultsHEPSub --n-files 5
