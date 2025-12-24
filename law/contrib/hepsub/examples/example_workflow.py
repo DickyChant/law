@@ -158,7 +158,7 @@ class ProcessDataHEPSub(law.contrib.hepsub.HEPSubWorkflow, law.LocalWorkflow):
             ])
             if self.cmssw_arch:
                 config.custom_content.append(
-                    "export LAW_CMSSW_ARCH='{}'".format(self.cmssw_arch)
+                    "export LAW_CMSSW_ARCH='{}'".format(self.cmssw_arch),
                 )
             config.custom_content.append("")
 

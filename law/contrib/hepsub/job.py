@@ -260,8 +260,14 @@ class HEPSubJobManager(BaseJobManager):
                     # For HEPSub on IHEP, jobs can finish very quickly (especially with test walltime)
                     # and disappear from the queue. Treat "not found" as finished so that output
                     # file completeness checking can determine if the job actually succeeded.
-                    query_data[_job_id] = self.job_status_dict(job_id=_job_id, status=self.FINISHED,
-                        error="job not found in query, assuming finished (fast job cleanup)")
+                    query_data[_job_id] = self.job_status_dict(
+                        job_id=_job_id,
+                        status=self.FINISHED,
+                        error=(
+                            "job not found in query, assuming finished "
+                            "(fast job cleanup)"
+                        ),
+                    )
 
         return query_data if chunking else query_data[job_id]
 
