@@ -24,7 +24,7 @@ import six
 from law.config import Config
 from law.job.base import BaseJobManager, BaseJobFileFactory, JobInputFile, DeprecatedInputFiles
 from law.target.file import get_path
-from law.util import make_list, make_unique, quote_cmd, interruptable_popen
+from law.util import make_list, quote_cmd, interruptable_popen
 from law.logger import get_logger
 
 from law.contrib.hepsub.util import get_hepsub_version
@@ -68,8 +68,26 @@ class HEPSubJobManager(BaseJobManager):
     def cleanup_batch(self, *args, **kwargs):
         raise NotImplementedError("HEPSubJobManager.cleanup_batch is not implemented")
 
-    def submit(self, job_file, group=None, pool=None, universe=None, emails=None, retries=0,
-            retry_delay=3, silent=False, _processes=None):
+    def submit(
+        self,
+        job_file,
+        group=None,
+        pool=None,
+        universe=None,
+        emails=None,
+        output=None,
+        error=None,
+        walltime=None,
+        memory=None,
+        cpu=None,
+        name=None,
+        quiet=None,
+        cleanenv=None,
+        retries=0,
+        retry_delay=3,
+        silent=False,
+        _processes=None,
+    ):
         # default arguments
         if group is None:
             group = self.group
@@ -91,6 +109,22 @@ class HEPSubJobManager(BaseJobManager):
             cmd += ["-p", pool]
         if universe:
             cmd += ["-u", universe]
+        if output:
+            cmd += ["-o", str(output)]
+        if error:
+            cmd += ["-e", str(error)]
+        if walltime:
+            cmd += ["-wt", str(walltime)]
+        if memory:
+            cmd += ["-m", str(memory)]
+        if cpu:
+            cmd += ["-cpu", str(cpu)]
+        if name:
+            cmd += ["-name", str(name)]
+        if quiet:
+            cmd += ["-quiet"]
+        if cleanenv:
+            cmd += ["-cleanenv"]
         cmd.append(job_file_name)
         cmd = quote_cmd(cmd)
 
@@ -142,7 +176,8 @@ class HEPSubJobManager(BaseJobManager):
             raise Exception("submission of hepsub job '{}' failed: \n{}".format(job_file, err))
 
     def cancel(self, job_id, group=None, pool=None, universe=None, silent=False, _processes=None):
-        # default arguments (group/pool/universe not used for cancel, but accepted for API compatibility)
+        # default arguments (group/pool/universe not used for cancel, but accepted for API
+        # compatibility)
         if group is None:
             group = self.group
         if pool is None:
@@ -238,9 +273,14 @@ class HEPSubJobManager(BaseJobManager):
         """
         query_data = {}
 
+        # hep_q output format can vary slightly. In particular, the "SUBMITTED" column is sometimes
+        # split into two fields (date + time), shifting the index of the status flag. Therefore,
+        # robustly detect the single-letter status token instead of relying on fixed indices.
+        valid_status_flags = {"I", "R", "C", "H", "X", "E"}
+
         for line in out.strip().split("\n"):
             parts = line.split()
-            if len(parts) < 5:
+            if len(parts) < 2:
                 continue
 
             # Skip header line
@@ -248,7 +288,14 @@ class HEPSubJobManager(BaseJobManager):
                 continue
 
             job_id_full = parts[0]  # e.g., "59446573.0"
-            status_flag = parts[4]
+            status_flag = None
+            for token in parts[1:]:
+                if token in valid_status_flags:
+                    status_flag = token
+                    break
+            if not status_flag:
+                # cannot parse the status, skip line
+                continue
 
             # Extract base job ID (before the dot)
             # Store both formats to handle matching
